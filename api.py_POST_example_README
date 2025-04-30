@@ -1,0 +1,71 @@
+#Python example
+import requests
+import os
+
+# --- Configuration ---
+API_URL = "http://127.0.0.1:8000/synthesize" # Replace with your actual API URL if different
+INPUT_AUDIO_PATH = "inputforindex.wav"      # Path to your input WAV file
+TEXT_TO_SYNTHESIZE = "This is a test"
+INFER_MODE = "普通推理"  # Or "批次推理" if needed
+OUTPUT_AUDIO_PATH = "synthesized_output.wav" # Desired name for the output file
+# --- /Configuration ---
+
+# Check if the input audio file exists
+if not os.path.exists(INPUT_AUDIO_PATH):
+    print(f"Error: Input audio file not found at '{INPUT_AUDIO_PATH}'")
+    exit(1)
+
+# Prepare the data payload (form fields)
+data_payload = {
+    'text': TEXT_TO_SYNTHESIZE,
+    'infer_mode': INFER_MODE
+}
+
+try:
+    # Open the input audio file in binary read mode
+    with open(INPUT_AUDIO_PATH, 'rb') as audio_file:
+        # Prepare the files payload (for multipart/form-data)
+        files_payload = {
+            # 'prompt_audio' is the name expected by the FastAPI endpoint
+            'prompt_audio': (os.path.basename(INPUT_AUDIO_PATH), audio_file, 'audio/wav')
+        }
+
+        print(f"Sending POST request to {API_URL}...")
+        print(f" - Text: '{TEXT_TO_SYNTHESIZE}'")
+        print(f" - Mode: '{INFER_MODE}'")
+        print(f" - Audio: '{INPUT_AUDIO_PATH}'")
+
+        # Make the POST request
+        response = requests.post(API_URL, data=data_payload, files=files_payload)
+
+        # Check if the request was successful (status code 200)
+        response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
+
+        # The response content should be the binary audio data
+        audio_data = response.content
+
+        # Save the received binary audio data to the output file
+        with open(OUTPUT_AUDIO_PATH, 'wb') as output_file:
+            output_file.write(audio_data)
+
+        print(f"\nSuccess! Synthesized audio saved to '{OUTPUT_AUDIO_PATH}'")
+
+except requests.exceptions.ConnectionError as e:
+    print(f"\nError: Could not connect to the API at {API_URL}.")
+    print("Please ensure the FastAPI server is running.")
+    print(f"Details: {e}")
+except requests.exceptions.RequestException as e:
+    print(f"\nError during API request: {e}")
+    # Print detailed error if available (e.g., from JSON response for 500 errors)
+    try:
+        error_details = response.json()
+        print("API Error Response:", error_details)
+    except (ValueError, AttributeError): # Handle cases where response is not JSON or response object doesn't exist
+        if hasattr(e, 'response') and e.response is not None:
+             print("API Raw Response:", e.response.text) # Show raw text if not JSON
+        else:
+             print("Could not get detailed error response from API.")
+
+
+except Exception as e:
+    print(f"\nAn unexpected error occurred: {e}")
